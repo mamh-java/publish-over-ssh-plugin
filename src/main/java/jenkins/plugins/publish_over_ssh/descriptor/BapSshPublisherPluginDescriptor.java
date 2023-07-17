@@ -29,6 +29,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import hudson.Extension;
+import hudson.ExtensionPoint;
+import hudson.init.InitMilestone;
+import hudson.init.Initializer;
+import hudson.util.Secret;
+import jenkins.plugins.publish_over.BPHostConfiguration;
+import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
@@ -53,6 +60,7 @@ import jenkins.plugins.publish_over_ssh.Messages;
 import jenkins.plugins.publish_over_ssh.options.SshDefaults;
 import jenkins.plugins.publish_over_ssh.options.SshPluginDefaults;
 import net.sf.json.JSONObject;
+import org.kohsuke.stapler.interceptor.RequirePOST;
 
 @SuppressWarnings("PMD.TooManyMethods")
 public class BapSshPublisherPluginDescriptor extends BuildStepDescriptor<Publisher> {
@@ -66,7 +74,7 @@ public class BapSshPublisherPluginDescriptor extends BuildStepDescriptor<Publish
     /** null - prevent complaints from xstream */
     @SuppressFBWarnings(value = "URF_UNREAD_FIELD")
     private transient Class hostConfigClass;
-    private final CopyOnWriteList<BapSshHostConfiguration> hostConfigurations = new CopyOnWriteList<BapSshHostConfiguration>();
+    private final CopyOnWriteList<BapSshHostConfiguration> hostConfigurations = new CopyOnWriteList<>();
     private BapSshCommonConfiguration commonConfig;
     private SshDefaults defaults;
 
@@ -100,14 +108,7 @@ public class BapSshPublisherPluginDescriptor extends BuildStepDescriptor<Publish
             retVal.add(current);
         }
 
-        Collections.sort(retVal, new Comparator<BapSshHostConfiguration>() {
-
-            @Override
-            public int compare(BapSshHostConfiguration p1, BapSshHostConfiguration p2) {
-                return p1.getName().compareTo(p2.getName());
-            }
-
-        });
+        Collections.sort(retVal, Comparator.comparing(BPHostConfiguration::getName));
 
         return retVal;
     }
@@ -123,7 +124,7 @@ public class BapSshPublisherPluginDescriptor extends BuildStepDescriptor<Publish
 
     /**
      * Add a Host Configuration to the list of configurations.
-     * 
+     *
      * @param configuration Host Configuration to add. The common configuration will be automatically set.
      */
     public void addHostConfiguration(final BapSshHostConfiguration configuration) {
@@ -133,7 +134,7 @@ public class BapSshPublisherPluginDescriptor extends BuildStepDescriptor<Publish
 
     /**
      * Removes the given named Host Configuration from the list of configurations.
-     * 
+     *
      * @param name The Name of the Host Configuration to remove.
      */
     public void removeHostConfiguration(final String name) {
@@ -190,7 +191,9 @@ public class BapSshPublisherPluginDescriptor extends BuildStepDescriptor<Publish
         return new jenkins.plugins.publish_over.view_defaults.manage_jenkins.Messages();
     }
 
+    @RequirePOST
     public FormValidation doTestConnection(final StaplerRequest request, final StaplerResponse response) {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
         final BapSshHostConfiguration hostConfig = request.bindParameters(BapSshHostConfiguration.class, "");
         hostConfig.setCommonConfig(request.bindParameters(BapSshCommonConfiguration.class, "common."));
         return validateConnection(hostConfig, createDummyBuildInfo());
