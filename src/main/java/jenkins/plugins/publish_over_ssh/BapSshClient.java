@@ -24,15 +24,12 @@
 
 package jenkins.plugins.publish_over_ssh;
 
-import com.jcraft.jsch.ChannelExec;
-import com.jcraft.jsch.ChannelSftp;
-import com.jcraft.jsch.JSchException;
-import com.jcraft.jsch.Session;
-import com.jcraft.jsch.SftpException;
+import com.jcraft.jsch.*;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.FilePath;
 import hudson.Util;
+import jenkins.plugins.publish_over.BPBuildEnv;
 import jenkins.plugins.publish_over.BPBuildInfo;
 import jenkins.plugins.publish_over.BPDefaultClient;
 import jenkins.plugins.publish_over.BapPublisherException;
@@ -41,10 +38,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -60,14 +57,18 @@ public class BapSshClient extends BPDefaultClient<BapSshTransfer> {
     private final Stack<Session> sessions = new Stack<>();
     private final boolean disableExec;
     private ChannelSftp sftp;
+    private final boolean avoidSameFileUpload;
+
+    private BapSshTransferCache remoteResourceCache;
 
     public BapSshClient(final BPBuildInfo buildInfo, final Session session) {
-        this(buildInfo, session, false);
+        this(buildInfo, session, false, false);
     }
 
-    public BapSshClient(final BPBuildInfo buildInfo, final Session session, final boolean disableExec) {
-        this.buildInfo = buildInfo;        
+    public BapSshClient(final BPBuildInfo buildInfo, final Session session, final boolean disableExec, final boolean avoidSameFileUpload) {
+        this.buildInfo = buildInfo;
         this.disableExec = disableExec;
+        this.avoidSameFileUpload = avoidSameFileUpload;
         addSession(session);
     }
 
@@ -81,6 +82,10 @@ public class BapSshClient extends BPDefaultClient<BapSshTransfer> {
 
     public boolean isDisableExec() {
         return disableExec;
+    }
+
+    public boolean isAvoidSameFileUpload() {
+      return avoidSameFileUpload;
     }
 
     public BPBuildInfo getBuildInfo() {
@@ -103,6 +108,16 @@ public class BapSshClient extends BPDefaultClient<BapSshTransfer> {
             if (!transfer.hasConfiguredSourceFiles() && !transfer.hasExecCommand())
                 throw new BapPublisherException(Messages.exception_badTransferConfig());
         }
+
+        BPBuildEnv buildEnv = getBuildInfo().getCurrentBuildEnv();
+        String jobName = buildEnv.getEnvVars().get(BPBuildEnv.ENV_JOB_NAME);
+
+        FilePath jobConfigPath = getBuildInfo().getConfigDir()
+          .child("jobs")
+          .child(jobName);
+
+        if( isAvoidSameFileUpload() )
+          this.remoteResourceCache = new BapSshTransferCache(jobConfigPath);
     }
 
     public boolean changeDirectory(final String directory) {
@@ -179,10 +194,31 @@ public class BapSshClient extends BPDefaultClient<BapSshTransfer> {
     }
 
     public void transferFile(final BapSshTransfer bapSshTransfer, final FilePath filePath,
-                             final InputStream inputStream) throws SftpException {
-        buildInfo.printIfVerbose(Messages.console_put(filePath.getName()));
-        sftp.put(inputStream, filePath.getName());
-        success();
+                             final InputStream inputStream) throws SftpException, IOException, InterruptedException {
+        final String fileName = filePath.getName();
+        buildInfo.printIfVerbose(Messages.console_put(fileName));
+        sftp.put(inputStream, fileName);
+
+        if (bapSshTransfer.isKeepFilePermissions()) {
+          final FilePath parentFle = filePath.getParent();
+          if (parentFle != null) {
+            final FilePath directory = parentFle.absolutize();
+            final String remoteDir = sftp.pwd();
+            int directoryMode = directory.mode();
+            if (directoryMode >= 0) {
+              buildInfo.printIfVerbose(Messages.console_chmod(Integer.toString(directoryMode, 8), fileName));
+              sftp.chmod(directoryMode, remoteDir);
+              success();
+            }
+
+            int fileMode = filePath.mode();
+            if (fileMode >= 0) {
+              buildInfo.printIfVerbose(Messages.console_chmod(Integer.toString(fileMode, 8), fileName));
+              sftp.chmod(fileMode, fileName);
+              success();
+            }
+          }
+        }
     }
 
     private void success() {
@@ -194,6 +230,11 @@ public class BapSshClient extends BPDefaultClient<BapSshTransfer> {
     }
 
     public void endTransfers(final BapSshTransfer transfer) {
+        if( isAvoidSameFileUpload() ) {
+          remoteResourceCache.save();
+          remoteResourceCache = null;
+        }
+
         if (!disableExec && transfer.hasExecCommand()) {
             if (transfer.isUseSftpForExec())
                 sftpExec(transfer);

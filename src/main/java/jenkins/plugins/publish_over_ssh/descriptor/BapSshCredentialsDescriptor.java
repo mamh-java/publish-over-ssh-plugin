@@ -37,6 +37,7 @@ import jenkins.plugins.publish_over_ssh.BapSshHostConfiguration;
 import jenkins.plugins.publish_over_ssh.BapSshPublisherPlugin;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.Stapler;
+import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import java.io.IOException;
 
@@ -64,18 +65,14 @@ public class BapSshCredentialsDescriptor extends Descriptor<BapSshCredentials> {
         if (!subject.hasPermission(Item.CONFIGURE)&&subject.hasPermission(Item.EXTENDED_READ)) {
             return FormValidation.ok();
         }
-        try {
-            return Jenkins.getInstance().getRootPath().validateRelativePath(value, true, true);
-        } catch (final IOException ioe) {
-            return FormValidation.error(ioe, "");
-        } catch (final NullPointerException npe) {
-            return FormValidation.error(npe, "");
-        }
+        return FormValidation.ok();
     }
 
+    @RequirePOST
     public FormValidation doTestConnection(@QueryParameter final String configName, @QueryParameter final String username,
                                            @QueryParameter final String encryptedPassphrase, @QueryParameter final String key,
                                            @QueryParameter final String keyPath) {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
         final BapSshCredentials credentials = new BapSshCredentials(username, encryptedPassphrase, key, keyPath);
         final BPBuildInfo buildInfo = BapSshPublisherPluginDescriptor.createDummyBuildInfo();
         buildInfo.put(BPBuildInfo.OVERRIDE_CREDENTIALS_CONTEXT_KEY, credentials);
