@@ -35,6 +35,7 @@ import jenkins.plugins.publish_over_ssh.Messages;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.interceptor.RequirePOST;
 
 @Extension
 public class BapSshHostConfigurationDescriptor extends Descriptor<BapSshHostConfiguration> {
@@ -60,6 +61,10 @@ public class BapSshHostConfigurationDescriptor extends Descriptor<BapSshHostConf
         return BapSshHostConfiguration.DEFAULT_TIMEOUT;
     }
 
+    public boolean getDefaultAvoidSameFileUploads() {
+      return BapSshHostConfiguration.DEFAULT_AVOID_SAME_FILES_UPLOAD;
+    }
+
     public FormValidation doCheckName(@QueryParameter final String value) {
         return BPValidators.validateName(value);
     }
@@ -80,11 +85,16 @@ public class BapSshHostConfigurationDescriptor extends Descriptor<BapSshHostConf
         return FormValidation.validateNonNegativeInteger(value);
     }
 
+    @RequirePOST
     public FormValidation doCheckKeyPath(@QueryParameter final String value) {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
         return BPValidators.validateFileOnMaster(value);
     }
 
+    @RequirePOST
     public FormValidation doTestConnection(final StaplerRequest request, final StaplerResponse response) {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+
         final BapSshPublisherPlugin.Descriptor pluginDescriptor;
         Jenkins j = Jenkins.getInstanceOrNull();
         if(j != null) {
@@ -99,5 +109,4 @@ public class BapSshHostConfigurationDescriptor extends Descriptor<BapSshHostConf
     public jenkins.plugins.publish_over.view_defaults.HostConfiguration.Messages getCommonFieldNames() {
         return new jenkins.plugins.publish_over.view_defaults.HostConfiguration.Messages();
     }
-
 }
