@@ -29,7 +29,7 @@
     <parent>
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>plugin</artifactId>
-        <version>4.12</version>
+        <version>4.19</version>
     </parent>
 
     <artifactId>publish-over-ssh</artifactId>
@@ -43,7 +43,7 @@
         <revision>1.23</revision>
         <changelist>-SNAPSHOT</changelist>
         <gitHubRepo>jenkinsci/publish-over-ssh-plugin</gitHubRepo>
-        <jenkins.version>2.235.1</jenkins.version>
+        <jenkins.version>2.263.1</jenkins.version>
         <java.level>8</java.level>
     </properties>
 
@@ -67,8 +67,8 @@
         <dependencies>
             <dependency>
                 <groupId>io.jenkins.tools.bom</groupId>
-                <artifactId>bom-2.235.x</artifactId>
-                <version>16</version>
+                <artifactId>bom-2.263.x</artifactId>
+                <version>887.vae9c8ac09ff7</version>
                 <scope>import</scope>
                 <type>pom</type>
             </dependency>
@@ -103,7 +103,7 @@
         <dependency>
             <groupId>org.easymock</groupId>
             <artifactId>easymockclassextension</artifactId>
-            <version>2.5.2</version>
+            <version>3.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
